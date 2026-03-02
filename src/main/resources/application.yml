@@ -1,0 +1,94 @@
+spring:
+  application:
+    # 应用名称
+    name: @appName@
+  profiles:
+    # 环境标识
+    active: @profileActive@
+  cloud:
+    nacos:
+      config:
+        # 配置分组
+        group: DEFAULT_GROUP
+  main:
+    # 允许循环引用
+    allow-circular-references: true
+    # 允许覆盖 Bean
+    allow-bean-definition-overriding: true
+  jackson:
+    locale: zh
+    time-zone: GMT+8
+
+server:
+  # 端口号
+  port: @appPort@
+  
+oy:
+  cloud:
+    redis:
+      host: 10.60.36.132
+      password: RTzxcvbnm,./1
+      port: 6379
+      enabledStore: true
+    db:
+      # 是否开启数据库功能
+      enabled: true #这里必须要开启数据源
+      # 是否开启动态数据源机制
+      dynamic: true
+      # 数据源连接地址
+#      url: jdbc:dm://10.48.52.102:5236
+      url: jdbc:mysql://10.60.36.55:3306/indicator?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      # 数据源用户名
+#      username: OYJF_AIMGR
+      username: root
+      # 数据源密码
+#      password: eLX8AzbHcRk7G7DE
+      password: root!12341234
+      # 驱动名称
+#      driverClassName: dm.jdbc.driver.DmDriver
+      driverClassName: com.mysql.cj.jdbc.Driver
+      # 默认数据源
+      name: master
+      druid:
+        #启动程序时，在连接池中初始化多少个连接
+        initial-size: 2
+        #连接池中支持的最大活跃连接数量
+        max-active: 4
+        #在进行空闲连接回收时，保证池中至少有N个连接
+        min-idle: 2
+        #向连接池中请求连接的超时时长，设置-1表示无限等待，单位毫秒
+        max-wait: 10000
+        #校验数据库连接是否有效的SQL语句
+        validation-query: SELECT 1 FROM DUAL
+        # 插件，stat-监控统计;slf4j-日志;wall-防御sql注入;config-密码解密
+        filters: stat,config
+#      slaves:
+#        # calcite数据源
+#        calcite:
+#          # 开启数据源
+#          enabled: false
+#          # 数据源连接地址
+#          url: 'jdbc:calcite:'
+#          # 驱动名称
+#          driverClassName: org.apache.calcite.jdbc.Driver
+#          # 是否支持获取连接的结果集保持性
+#          holdabilitySupported: false
+#          # 数据源代理过滤器
+#          proxyFilters: com.ouyeelf.jfhx.indicator.server.config.ConnectionInitFilter
+#          druid:
+#            #启动程序时，在连接池中初始化多少个连接
+#            initial-size: 2
+#            #连接池中支持的最大活跃连接数量
+#            max-active: 4
+#            #在进行空闲连接回收时，保证池中至少有N个连接
+#            min-idle: 2
+#            #向连接池中请求连接的超时时长，设置-1表示无限等待，单位毫秒
+#            max-wait: 10000
+#            # 连接配置
+#            connect-properties:
+#              # 忽略大小写
+#              caseSensitive: false
+
+logging:
+  level:
+    org.jooq: debug

@@ -5,10 +5,18 @@ import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.metadata.data.ReadCellData;
 import com.alibaba.excel.read.listener.ReadListener;
 import com.alibaba.fastjson.JSON;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.ouyeelf.cloud.commons.http.apache.HttpClientHelper;
+import com.ouyeelf.cloud.commons.utils.CollectionUtils;
+import com.ouyeelf.cloud.commons.utils.StringUtils;
+import com.ouyeelf.jfhx.indicator.server.config.Constants;
 import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBSessionManager;
+import com.ouyeelf.jfhx.indicator.server.entity.IndicatorCaliberEntity;
+import com.ouyeelf.jfhx.indicator.server.entity.IndicatorEntity;
 import com.ouyeelf.jfhx.indicator.server.service.biz.ExpressionService;
 import com.ouyeelf.jfhx.indicator.server.service.biz.IndicatorService;
+import com.ouyeelf.jfhx.indicator.server.service.db.IndicatorCaliberDataService;
+import com.ouyeelf.jfhx.indicator.server.service.db.IndicatorDataService;
 import com.ouyeelf.jfhx.indicator.server.vo.CreateIndicatorRequest;
 import com.ouyeelf.jfhx.indicator.server.vo.IndicatorExecuteRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +45,12 @@ public class TestController {
 	@Resource
 	private IndicatorService indicatorService;
 	
+	@Resource
+	private IndicatorDataService indicatorDataService;
+	
+	@Resource
+	private IndicatorCaliberDataService indicatorCaliberDataService;
+	
 	@PostMapping("expression/create")
 	public String createExpression(@RequestBody CreateIndicatorRequest request) {
 		indicatorService.create(request);
@@ -51,6 +65,26 @@ public class TestController {
 	@GetMapping("expression/get")
 	public Object executeExpression() {
 		return DuckDBSessionManager.getContext().fetch("select * from result_dataset_1").intoMaps();
+	}
+	
+	@GetMapping("indicator/list")
+	public List<Map<String, Object>> list() {
+		List<IndicatorCaliberEntity> indicatorCalibers = indicatorCaliberDataService
+				.list(new QueryWrapper<IndicatorCaliberEntity>().lambda()
+				.eq(IndicatorCaliberEntity::getStatus, Constants.Status.NORMAL)
+				.orderByAsc(IndicatorCaliberEntity::getPriority));
+		Map<String, IndicatorEntity> indicators = indicatorDataService.listMapByCode();
+		indicatorCalibers.forEach(indicatorCaliber -> indicatorCaliber.setIndicator(indicators.get(indicatorCaliber.getIndicatorCode())));
+		List<Map<String, Object>> results = new ArrayList<>();
+		for (IndicatorCaliberEntity indicatorCaliber : indicatorCalibers) {
+			Map<String, Object> result = new HashMap<>();
+			result.put("indicatorName", indicatorCaliber.getIndicator().getIndicatorName());
+			result.put("indicatorCode", indicatorCaliber.getIndicatorCode());
+			result.put("indicatorCaliberName", indicatorCaliber.getCaliberName());
+			result.put("indicatorCaliberDesc", indicatorCaliber.getCaliberDesc());
+			results.add(result);
+		}
+		return results;
 	}
 
 	public static void main(String[] args) {

@@ -1,16 +1,12 @@
 package com.ouyeelf.jfhx.indicator.server.service.biz.impl;
 
-import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.ouyeelf.cloud.commons.utils.CollectionUtils;
-import com.ouyeelf.cloud.commons.utils.DateUtils;
-import com.ouyeelf.cloud.commons.utils.StringUtils;
-import com.ouyeelf.cloud.starter.commons.dispose.core.CommonResultCode;
 import com.ouyeelf.cloud.starter.commons.dispose.core.IResultCodeException;
 import com.ouyeelf.cloud.starter.redis.store.RedisUtils;
 import com.ouyeelf.jfhx.indicator.server.config.AppProperties;
-import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBOperator;
+import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBClients;
 import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBSessionManager;
 import com.ouyeelf.jfhx.indicator.server.entity.IndicatorCaliberEntity;
 import com.ouyeelf.jfhx.indicator.server.service.biz.ExpressionService;
@@ -40,11 +36,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
+import static com.ouyeelf.jfhx.indicator.server.config.AppResultCode.EXPRESSION_EXECUTE_FAILED;
 import static com.ouyeelf.jfhx.indicator.server.config.Constants.EXPRESSION_REDIS_KEY;
-import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_VALUE;
 
 /**
  * @author : why
@@ -53,19 +47,19 @@ import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_VALUE;
 @Slf4j
 @Service
 public class DefaultExpressionService implements ExpressionService {
-	
+
 	@Resource
 	private ExpressionDataService expressionDataService;
-	
+
 	@Resource
 	private RedisUtils redisUtils;
-	
+
 	@Resource
 	private ExpressionNodeDataService expressionNodeDataService;
-	
+
 	@Resource
 	private IndicatorCaliberDataService indicatorCaliberDataService;
-	
+
 	@Resource
 	private AppProperties properties;
 
@@ -89,7 +83,7 @@ public class DefaultExpressionService implements ExpressionService {
 
 	/**
 	 * 创建并保存表达式
-	 * 
+	 *
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	@Override
@@ -116,15 +110,19 @@ public class DefaultExpressionService implements ExpressionService {
 
 		// 4. 持久化
 		expression.accept(persistenceVisitor);
-		
+
 		redisUtils.set(EXPRESSION_REDIS_KEY + expressionId, ExpressionNodeSerializer.serialize(rootNode));
-		
+
 		return expressionId;
 	}
 
 	@Override
 	public Object executeExpression(IndicatorExecuteRequest executeRequest) {
-		Map<String, List<String>> cases = new HashMap<>();
+		List<Map<String, Object>> results = new ArrayList<>();
+		try {
+			DuckDBClients.initializeTable("D:\\tmp\\data\\clean_dataset\\test.parquet", "report_item_fact");
+
+			Map<String, List<String>> cases = new HashMap<>();
 //		cases.put("2", Lists.newArrayList("OC_P_ACT","OC_P_PRV","OC_P_MOM","OC_P_MOM_R","OC_P_YOY_B",
 //				"OC_P_YOY","OC_P_YOY_R","OC_Y_ACT","OC_Y_YOY_B","OC_Y_YOY","OC_Y_YOY_R","OR_P_ACT",
 //				"OR_P_PRV","OR_P_MOM","OR_P_MOM_R","OR_P_YOY_B","OR_P_YOY","OR_P_YOY_R",
@@ -137,87 +135,90 @@ public class DefaultExpressionService implements ExpressionService {
 //				"GPM_Y_YOY_R","CFO_P_ACT","CFO_P_PRV","CFO_P_MOM","CFO_P_MOM_R","CFO_P_YOY_B",
 //				"CFO_P_YOY","CFO_P_YOY_R","CFO_Y_ACT","CFO_Y_YOY_B","CFO_Y_YOY","CFO_Y_YOY_R"));
 
-		List<String> indicatorCodes = cases.get(executeRequest.getCaseId()) == null ? executeRequest.getIndicatorCode() : cases.get(executeRequest.getCaseId());
+			List<String> indicatorCodes = cases.get(executeRequest.getCaseId()) == null ? executeRequest.getIndicatorCode() : cases.get(executeRequest.getCaseId());
 
-		List<IndicatorCaliberEntity> indicatorCalibers = indicatorCaliberDataService
-				.listByCaseIdOrCode(executeRequest.getCaseId(), indicatorCodes);
-		if (CollectionUtils.isEmpty(indicatorCalibers)) {
-			return Collections.emptyList();
-		}
+			List<IndicatorCaliberEntity> indicatorCalibers = indicatorCaliberDataService
+					.listByCaseIdOrCode(executeRequest.getCaseId(), indicatorCodes);
+			if (CollectionUtils.isEmpty(indicatorCalibers)) {
+				return Collections.emptyList();
+			}
 
-		ExecutionContext context = new ExecutionContext();
+			ExecutionContext context = new ExecutionContext();
 
-		List<FilterCondition> conditions = new ArrayList<>();
-		if (executeRequest.listPeriods().size() == 1) {
-			conditions.add(FilterCondition.builder()
-					.columnName("ACCT_PERIOD_NO")
-					.operator(FilterOperator.EQ)
-					.value(executeRequest.listPeriods().get(0))
-					.build());
-		} else {
-			conditions.add(FilterCondition.builder()
-					.columnName("ACCT_PERIOD_NO")
-					.operator(FilterOperator.IN)
-					.value(executeRequest.listPeriods())
-					.build());
-		}
-
-
-		if (CollectionUtils.isNotEmpty(executeRequest.getAccountCode())) {
-			if (executeRequest.getAccountCode().size() > 1) {
+			List<FilterCondition> conditions = new ArrayList<>();
+			if (executeRequest.listPeriods().size() == 1) {
 				conditions.add(FilterCondition.builder()
-						.columnName("COMPANY_INNER_CODE")
-						.operator(FilterOperator.IN)
-						.value(executeRequest.getAccountCode())
+						.columnName("ACCT_PERIOD_NO")
+						.operator(FilterOperator.EQ)
+						.value(executeRequest.listPeriods().get(0))
 						.build());
 			} else {
 				conditions.add(FilterCondition.builder()
-						.columnName("COMPANY_INNER_CODE")
-						.operator(FilterOperator.EQ)
-						.value(executeRequest.getAccountCode().get(0))
+						.columnName("ACCT_PERIOD_NO")
+						.operator(FilterOperator.IN)
+						.value(executeRequest.listPeriods())
 						.build());
 			}
-		}
 
-		context.setDynamicFilters(conditions);
-		context.setCalcPeriod(executeRequest.getPeriod());
-		
-		List<Map<String, Object>> results = new ArrayList<>();
-		for (IndicatorCaliberEntity indicatorCaliber : indicatorCalibers) {
-			long t1 = System.currentTimeMillis();
-			ExpressionNode expressionRoot = ExpressionNodeSerializer.deserialize(
-					(String) redisUtils.get(EXPRESSION_REDIS_KEY + indicatorCaliber.getExpressionId()));
-			if (expressionRoot instanceof Executable) {
-				context.setProperties(properties);
-				context.setIndicator(indicatorCaliber);
-				context.setDismissions(Sets.newHashSet(
-						"COMPANY_INNER_CODE",
-						"ACCT_PERIOD_NO"));
-				ExecutionResult result = ((Executable) expressionRoot).execute(context);
-				try {
-					results.addAll(result.getResult(context));
-				} catch (Exception e) {
-					throw new RuntimeException(e);
+
+			if (CollectionUtils.isNotEmpty(executeRequest.getAccountCode())) {
+				if (executeRequest.getAccountCode().size() > 1) {
+					conditions.add(FilterCondition.builder()
+							.columnName("COMPANY_INNER_CODE")
+							.operator(FilterOperator.IN)
+							.value(executeRequest.getAccountCode())
+							.build());
+				} else {
+					conditions.add(FilterCondition.builder()
+							.columnName("COMPANY_INNER_CODE")
+							.operator(FilterOperator.EQ)
+							.value(executeRequest.getAccountCode().get(0))
+							.build());
 				}
 			}
 
-			long t2 = System.currentTimeMillis();
-			log.info("Expression: {} executed in {} ms", indicatorCaliber.getIndicatorCode(), t2 - t1);
+			context.setDynamicFilters(conditions);
+			context.setCalcPeriod(executeRequest.getPeriod());
 
+			for (IndicatorCaliberEntity indicatorCaliber : indicatorCalibers) {
+				long t1 = System.currentTimeMillis();
+				ExpressionNode expressionRoot = ExpressionNodeSerializer.deserialize(
+						(String) redisUtils.get(EXPRESSION_REDIS_KEY + indicatorCaliber.getExpressionId()));
+				if (expressionRoot instanceof Executable) {
+					context.setProperties(properties);
+					context.setIndicator(indicatorCaliber);
+					context.setDismissions(Sets.newHashSet(
+							"COMPANY_INNER_CODE",
+							"ACCT_PERIOD_NO"));
+					ExecutionResult result = ((Executable) expressionRoot).execute(context);
+					results.addAll(result.getResult(context));
+				}
+
+				long t2 = System.currentTimeMillis();
+				log.info("Expression: {} executed in {} ms", indicatorCaliber.getIndicatorCode(), t2 - t1);
+
+			}
+		} catch (IResultCodeException e) {
+			throw e;
+		} catch (Exception e) {
+			log.error("Error executing expression", e);
+			throw new IResultCodeException(EXPRESSION_EXECUTE_FAILED);
+		} finally {
+			DuckDBSessionManager.close();
 		}
 
-		DuckDBSessionManager.close();
-
-		results.stream()
-				.sorted(Comparator.comparing(row -> Integer.parseInt((String) row.get("ACCT_PERIOD_NO"))))
-				.forEach(row -> row.put("METRIC_VALUE", String.valueOf(row.get("METRIC_VALUE"))));
+		results.forEach(row -> {
+			if (row.get("METRIC_VALUE") != null) {
+				row.put("METRIC_VALUE", String.valueOf(row.get("METRIC_VALUE")));
+			}
+		});
 
 		return results;
 	}
 
 	/**
 	 * 递归设置节点的expressionId
-	 * 
+	 *
 	 * @param expressionId 表达式ID
 	 * @param node 节点   
 	 */

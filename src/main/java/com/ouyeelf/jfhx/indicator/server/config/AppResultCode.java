@@ -23,7 +23,10 @@ public enum AppResultCode implements IResultCode {
 	EXCEL_SHEET_NOT_EXIST("2005", "Excel文件{}不存在该工作表{}"),
 	
 	DATA_CLEAN_RULE_CONFIG_INVALID("2006", "数据清洗规则[{}]配置有误，请检查后重试"),
-	EXCEL_DATA_CLEANER_EX("2007", "Excel文件解析异常");
+	EXCEL_DATA_CLEANER_EX("2007", "Excel文件解析异常"),
+	EXPRESSION_EXECUTE_FAILED("2008", "指标表达式计算时出现错误，无法完成指标数值的计算"),
+	
+	SQL_IMPORT_IN_DUCKDB_FAILED("9000", "在使用DuckDB导入文件时出现错误，无法完成导入/执行操作"),;
 	
     private final String code;
 

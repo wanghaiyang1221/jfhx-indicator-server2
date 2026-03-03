@@ -1,6 +1,5 @@
 package com.ouyeelf.jfhx.indicator.server.config;
 
-import com.google.common.collect.Sets;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.sql.DimensionColumn;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.sql.FilterCondition;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.sql.FilterOperator;
@@ -13,9 +12,9 @@ import org.springframework.util.unit.DataUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
-import static com.ouyeelf.jfhx.indicator.server.config.Constants.*;
+import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_PREFIX;
+import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_VALUE;
 
 /**
  * 应用配置属性映射类，映射 application.yml/properties、配置中心中的 app.* 配置项，自动绑定配置到类属性同时支持热更新。
@@ -24,11 +23,11 @@ import static com.ouyeelf.jfhx.indicator.server.config.Constants.*;
  * {@code
  * @Resource
  * private AppProperties appProperties;
- * 
+ *
  * String appName = appProperties.getName();
  * }
  * </pre>
- * 
+ *
  * @author : 技术架构部
  * @since : 2026-01-22
  */
@@ -36,57 +35,132 @@ import static com.ouyeelf.jfhx.indicator.server.config.Constants.*;
 @ConfigurationProperties(prefix = AppProperties.PREFIX)
 public class AppProperties {
 
-    public static final String PREFIX = "app";
-	
 	/**
-	 * P文件配置
+	 * 配置属性的前缀，对应配置文件中的 `app.`
+	 */
+	public static final String PREFIX = "app";
+
+	/**
+	 * Parquet文件存储相关的配置
 	 */
 	private ParquetConfig parquet = new ParquetConfig();
-	
+
+	/**
+	 * 存储指标结果数据的表结构配置
+	 */
 	private ResultSetTableConfig resultSetTableConfig = new ResultSetTableConfig();
-	
+
+	/**
+	 * 结果集表配置内部类，定义存储计算结果的数据表结构
+	 */
 	@Data
 	public static class ResultSetTableConfig {
+		/**
+		 * Parquet文件存储路径模板，{ }为占位符，运行时替换
+		 */
 		private String parquetPath = "D:/tmp/data/clean_dataset/{}/{}/";
+
+		/**
+		 * 结果集表名模板，%s为占位符，运行时替换
+		 */
 		private String tableName = "result_dataset_%s";
+
+		/**
+		 * 主键ID列名
+		 */
 		private String id = METRIC_PREFIX + "ID";
+
+		/**
+		 * 指标名称列名
+		 */
 		private String metricName = METRIC_PREFIX + "NAME";
+
+		/**
+		 * 指标编码列名
+		 */
 		private String metricCode = METRIC_PREFIX + "CODE";
+
+		/**
+		 * 指标描述列名
+		 */
 		private String metricDesc = METRIC_PREFIX + "DESC";
+
+		/**
+		 * 指标口径名称列名
+		 */
 		private String metricCaliberName = METRIC_PREFIX + "CALIBER_NAME";
+
+		/**
+		 * 指标口径描述列名
+		 */
 		private String metricCaliberDesc = METRIC_PREFIX + "CALIBER_DESC";
+
+		/**
+		 * 指标统计周期列名
+		 */
 		private String metricPeriod = METRIC_PREFIX + "PERIOD";
+
+		/**
+		 * 指标数值列名
+		 */
 		private String metricValue = METRIC_VALUE;
+
+		/**
+		 * 指标数值类型列名
+		 */
 		private String metricValueType = METRIC_VALUE + "_TYPE";
+
+		/**
+		 * 指标数值单位列名
+		 */
 		private String metricValueUnit = METRIC_VALUE + "_UNIT";
-		private String dimensionHash = METRIC_PREFIX + "DIMENSION_HASH";
+
+		/**
+		 * 数据创建时间列名
+		 */
 		private String createTime = METRIC_PREFIX + "CREATE_TIME";
-		
+
+		/**
+		 * 获取作为维度列的字段列表
+		 * <p>用于数据查询、分组等操作，默认包含ID、指标名、指标编码和创建时间这四个字段。</p>
+		 *
+		 * @return 维度列列表
+		 */
 		public List<DimensionColumn> getDimensions() {
 			return Arrays.asList(
 					new DimensionColumn(id),
 					new DimensionColumn(metricName),
 					new DimensionColumn(metricCode),
-					new DimensionColumn(dimensionHash),
 					new DimensionColumn(createTime)
 			);
 		}
-		
+
+		/**
+		 * 根据给定的指标编码，生成对应的查询过滤条件
+		 * <p>用于从结果集中筛选特定指标数据，该方法构建一个等于条件的过滤器，筛选指定指标编码的数据。</p>
+		 *
+		 * @param indicatorCode 要查询的指标编码
+		 * @return 过滤条件列表，包含一个按指标编码等于给定值的条件
+		 */
 		public List<FilterCondition> getFilters(String indicatorCode) {
 			return Collections.singletonList(
-					FilterCondition.builder().columnName(metricCode).operator(FilterOperator.EQ).value(indicatorCode).build()
+					FilterCondition.builder()
+							.columnName(metricCode)
+							.operator(FilterOperator.EQ)
+							.value(indicatorCode)
+							.build()
 			);
 		}
 	}
-	
+
 	/**
-	 * P文件配置
+	 * Parquet文件存储配置内部类
 	 */
 	@Data
 	public static class ParquetConfig {
 
 		/**
-		 * P文件路径模板
+		 * Parquet文件存储路径模板，{ }为运行时替换的占位符
 		 */
 		private String pathTemplate = "D:/tmp/data/{}";
 
@@ -109,7 +183,7 @@ public class AppProperties {
 		private DataSize pageSize = DataSize.of(1, DataUnit.MEGABYTES);
 
 		/**
-		 * 压缩算法
+		 * 默认压缩算法：Snappy，兼顾压缩速度与解压性能
 		 */
 		private CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
 	}

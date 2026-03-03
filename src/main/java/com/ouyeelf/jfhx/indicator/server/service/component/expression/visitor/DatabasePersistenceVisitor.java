@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * 将表达式持久化到数据库进行存储
+ * 
  * @author : why
  * @since :  2026/1/30
  */

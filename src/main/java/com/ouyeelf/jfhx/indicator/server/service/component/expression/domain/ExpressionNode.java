@@ -1,9 +1,7 @@
 package com.ouyeelf.jfhx.indicator.server.service.component.expression.domain;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.enums.NodeType;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.node.*;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.visitor.NodeVisitor;

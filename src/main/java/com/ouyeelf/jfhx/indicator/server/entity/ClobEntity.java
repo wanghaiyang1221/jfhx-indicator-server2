@@ -1,4 +1,4 @@
-//package com.ouyeelf.jfhx.indicator.server.entity;
+package com.ouyeelf.jfhx.indicator.server.entity;//package com.ouyeelf.jfhx.indicator.server.entity;
 //
 //import com.baomidou.mybatisplus.annotation.IdType;
 //import com.baomidou.mybatisplus.annotation.TableId;

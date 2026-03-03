@@ -18,7 +18,7 @@ import java.util.*;
  * </p>
  *
  * @author : why
- * @since :  2026/1/30
+ * @since : 2026/1/30
  * @see ExpressionNode
  * @see NodeVisitor
  */
@@ -45,6 +45,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	 */
 	private Integer orderNo;
 
+	/**
+	 * 默认构造函数
+	 * <p>自动生成节点ID，如果节点ID为空则使用IdGenerator生成唯一标识。</p>
+	 */
 	public AbstractExpressionNode() {
 		if (this.nodeId == null) {
 			this.nodeId = IdGenerator.nextId();
@@ -78,7 +82,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 获取节点深度（用于调试和可视化）
+	 * 获取节点深度
+	 * <p>递归计算节点在树中的深度，根节点深度为1。</p>
+	 *
+	 * @return 节点深度
 	 */
 	public int getDepth() {
 		int maxDepth = 0;
@@ -92,7 +99,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 获取节点总数（包括子节点）
+	 * 获取节点总数
+	 * <p>递归计算节点及其所有子节点的总数。</p>
+	 *
+	 * @return 节点总数
 	 */
 	public int getNodeCount() {
 		int count = 1; // 自己
@@ -106,6 +116,9 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 获取叶子节点数量
+	 * <p>递归计算所有叶子节点的数量。</p>
+	 *
+	 * @return 叶子节点数量
 	 */
 	public int getLeafCount() {
 		if (children().isEmpty()) {
@@ -122,14 +135,18 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 是否为叶子节点
+	 * 判断是否为叶子节点
+	 *
+	 * @return 如果没有子节点则返回true，否则返回false
 	 */
 	public boolean isLeaf() {
 		return children().isEmpty();
 	}
 
 	/**
-	 * 是否为根节点
+	 * 判断是否为根节点
+	 *
+	 * @return 如果没有父节点则返回true，否则返回false
 	 */
 	public boolean isRoot() {
 		return parentNodeId == null;
@@ -137,6 +154,8 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 获取所有叶子节点
+	 *
+	 * @return 叶子节点列表
 	 */
 	public List<AbstractExpressionNode> getLeafNodes() {
 		List<AbstractExpressionNode> leafNodes = new ArrayList<>();
@@ -146,6 +165,8 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 递归收集叶子节点
+	 *
+	 * @param leafNodes 用于存储叶子节点的列表
 	 */
 	private void collectLeafNodes(List<AbstractExpressionNode> leafNodes) {
 		if (isLeaf()) {
@@ -161,6 +182,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 查找特定类型的节点
+	 *
+	 * @param <T> 节点类型
+	 * @param nodeType 要查找的节点类型Class对象
+	 * @return 匹配的节点列表
 	 */
 	public <T extends ExpressionNode> List<T> findNodes(Class<T> nodeType) {
 		List<T> nodes = new ArrayList<>();
@@ -170,6 +195,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 递归查找节点
+	 *
+	 * @param <T> 节点类型
+	 * @param nodeType 要查找的节点类型Class对象
+	 * @param nodes 用于存储找到的节点的列表
 	 */
 	@SuppressWarnings("unchecked")
 	private <T extends ExpressionNode> void findNodesRecursive(Class<T> nodeType, List<T> nodes) {
@@ -185,7 +214,9 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 打印节点树（用于调试）
+	 * 将节点树转换为字符串表示（用于调试）
+	 *
+	 * @return 节点树的字符串表示
 	 */
 	public String toTreeString() {
 		return toTreeString(0);
@@ -193,6 +224,9 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 
 	/**
 	 * 递归打印节点树
+	 *
+	 * @param indent 缩进层级
+	 * @return 带缩进的节点树字符串
 	 */
 	protected String toTreeString(int indent) {
 		StringBuilder sb = new StringBuilder();
@@ -218,14 +252,20 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 获取节点信息（子类可覆盖）
+	 * 获取节点信息
+	 * <p>子类可覆盖此方法以提供特定节点类型的详细信息。</p>
+	 *
+	 * @return 节点信息字符串
 	 */
 	protected String getNodeInfo() {
 		return "";
 	}
 
 	/**
-	 * 转换为JSON表示（简化版）
+	 * 将节点转换为JSON表示
+	 * <p>生成包含节点基本信息和子节点信息的Map结构。</p>
+	 *
+	 * @return 节点的JSON表示
 	 */
 	public Map<String, Object> toJson() {
 		Map<String, Object> json = new LinkedHashMap<>();
@@ -252,7 +292,10 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	// ============ 节点操作方法 ============
 
 	/**
-	 * 优化节点（子类可覆盖）
+	 * 优化节点
+	 * <p>默认实现：递归优化所有子节点。子类可覆盖此方法以提供特定的优化逻辑。</p>
+	 *
+	 * @return 优化后的节点
 	 */
 	public AbstractExpressionNode optimize() {
 		// 默认实现：优化子节点
@@ -265,7 +308,9 @@ public abstract class AbstractExpressionNode extends AbstractExecutable implemen
 	}
 
 	/**
-	 * 接受访问者并递归访问子节点（辅助方法）
+	 * 接受访问者并递归访问子节点
+	 *
+	 * @param visitor 节点访问者
 	 */
 	protected void acceptChildren(NodeVisitor visitor) {
 		for (ExpressionNode child : children()) {

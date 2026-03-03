@@ -1,12 +1,9 @@
 package com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.dataframe;
 
+import com.google.common.collect.Lists;
 import com.ouyeelf.cloud.commons.utils.StringUtils;
-import com.ouyeelf.cloud.starter.commons.utils.SpringBeanContainer;
-import com.ouyeelf.jfhx.indicator.server.config.AppProperties;
-import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBOperator;
-import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBSessionManager;
+import com.ouyeelf.jfhx.indicator.server.duckdb.DuckDBClients;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.enums.OperatorType;
-import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.sql.DimensionColumn;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.ExecutionResult;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.result.DuckDBTableResult;
 import lombok.Getter;
@@ -22,30 +19,82 @@ import static com.ouyeelf.jfhx.indicator.server.service.component.expression.exe
 import static com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.support.ExecutionHelper.isMeasureColumn;
 
 /**
+ * DuckDB DataFrame实现
+ *
+ * <p>基于DuckDB数据库实现的DataFrame接口，支持在数据库层面执行数据操作，避免数据移动开销。</p>
+ *
+ * <p><b>核心特性</b>：
+ * <ul>
+ *   <li><b>数据库原生操作</b>：大部分操作转换为SQL在DuckDB中执行，性能高效</li>
+ *   <li><b>懒加载</b>：列名和行数信息按需加载并缓存</li>
+ *   <li><b>SQL生成</b>：将DataFrame操作转换为优化的SQL语句</li>
+ *   <li><b>临时表管理</b>：自动创建和管理临时表，避免命名冲突</li>
+ *   <li><b>类型安全</b>：提供类型安全的接口和错误处理</li>
+ * </ul>
+ * </p>
+ *
+ * <p><b>实现原理</b>：
+ * <ol>
+ *   <li>每个DuckDBDataFrame对应DuckDB中的一个临时表</li>
+ *   <li>操作转换为SQL语句在DuckDB中执行</li>
+ *   <li>结果保存为新临时表，实现不可变性</li>
+ *   <li>列信息和行数信息通过系统表查询并缓存</li>
+ * </ol>
+ * </p>
+ *
+ * <p><b>性能优化</b>：
+ * <ul>
+ *   <li>避免不必要的数据传输：在数据库内完成计算</li>
+ *   <li>列名和行数缓存：减少系统表查询</li>
+ *   <li>SQL优化：生成高效的SQL语句</li>
+ *   <li>批量操作：支持批量数据处理</li>
+ * </ul>
+ * </p>
+ *
  * @author : why
- * @since :  2026/2/2
+ * @since : 2026/2/2
+ * @see DataFrame
+ * @see GroupedDataFrame
+ * @see DuckDBClients
  */
 @Slf4j
 public class DuckDBDataFrame implements DataFrame {
 
+	/**
+	 * 对应的DuckDB表名
+	 */
 	@Getter
 	private final String tableName;
 
-	// 缓存
+	/**
+	 * 缓存的列名列表
+	 */
 	private List<String> cachedColumnNames;
+
+	/**
+	 * 缓存的行数
+	 */
 	private Integer cachedRowCount;
 
 	/**
 	 * 构造函数
+	 *
+	 * @param tableName DuckDB中的表名
 	 */
 	public DuckDBDataFrame(String tableName) {
 		this.tableName = tableName;
+	}
+	
+	public DuckDBDataFrame(String tableName, List<String> cachedColumnNames) {
+		this.tableName = tableName;
+		this.cachedColumnNames = cachedColumnNames;
 	}
 
 	// ============ 基本信息 ============
 
 	@Override
 	public List<String> getColumnNames() {
+		// 懒加载并缓存列名
 		if (cachedColumnNames == null) {
 			loadColumnNames();
 		}
@@ -54,6 +103,7 @@ public class DuckDBDataFrame implements DataFrame {
 
 	@Override
 	public int getRowCount() {
+		// 懒加载并缓存行数
 		if (cachedRowCount == null) {
 			loadRowCount();
 		}
@@ -70,7 +120,7 @@ public class DuckDBDataFrame implements DataFrame {
 	@Override
 	public Optional<DataFrameRow> getRow(int index) {
 		String sql = "SELECT * FROM " + tableName + " LIMIT 1 OFFSET " + index;
-		List<Map<String, Object>> result = DuckDBOperator.executeQuery(sql);
+		List<Map<String, Object>> result = DuckDBClients.executeQuery(sql);
 
 		if (result.isEmpty()) {
 			return Optional.empty();
@@ -97,8 +147,7 @@ public class DuckDBDataFrame implements DataFrame {
 
 	@Override
 	public DataFrame filter(Predicate<DataFrameRow> predicate) {
-		// DuckDB不能直接执行Java Predicate
-		// 需要转为SQL WHERE子句或先加载到内存
+		// 由于DuckDB无法直接执行Java Predicate，需要先加载数据到内存
 		log.warn("filter(Predicate) loads data to memory. Consider using SQL-based filtering.");
 
 		List<Map<String, Object>> allRows = toMapList();
@@ -106,15 +155,19 @@ public class DuckDBDataFrame implements DataFrame {
 				.filter(row -> predicate.test(new DuckDBDataFrameRow(row)))
 				.collect(Collectors.toList());
 
-		// 创建新的DuckDB表
+		// 创建新的DuckDB临时表
 		String newTableName = generateTempTableName("filtered");
-		DuckDBOperator.createTempTable(newTableName, filtered);
+		DuckDBClients.createTempTable(newTableName, filtered);
 
 		return new DuckDBDataFrame(newTableName);
 	}
 
 	/**
-	 * SQL WHERE子句过滤（推荐）
+	 * SQL WHERE子句过滤
+	 * <p>使用原生SQL WHERE条件进行过滤，性能优于Java Predicate。</p>
+	 *
+	 * @param whereClause SQL WHERE条件表达式，如"age > 18 AND name LIKE '张%'"
+	 * @return 过滤后的DataFrame
 	 */
 	public DataFrame filter(String whereClause) {
 		String sql = "SELECT * FROM " + tableName + " WHERE " + whereClause;
@@ -123,7 +176,7 @@ public class DuckDBDataFrame implements DataFrame {
 
 	@Override
 	public DataFrame withColumn(String columnName, Function<DataFrameRow, Object> compute) {
-		// 同样需要加载到内存
+		// 需要将Java函数转为内存计算
 		log.warn("withColumn(Function) loads data to memory. Consider using SQL expressions.");
 
 		List<Map<String, Object>> newRows = toMapList().stream()
@@ -136,13 +189,18 @@ public class DuckDBDataFrame implements DataFrame {
 				.collect(Collectors.toList());
 
 		String newTableName = generateTempTableName("with_column");
-		DuckDBOperator.createTempTable(newTableName, newRows);
+		DuckDBClients.createTempTable(newTableName, newRows);
 
 		return new DuckDBDataFrame(newTableName);
 	}
 
 	/**
-	 * SQL表达式添加列（推荐）
+	 * SQL表达式添加列
+	 * <p>使用SQL表达式计算新列，避免数据移动，性能更优。</p>
+	 *
+	 * @param columnName 新列名
+	 * @param sqlExpression SQL表达式，如"price * quantity"或"UPPER(name)"
+	 * @return 添加列后的DataFrame
 	 */
 	public DataFrame withColumn(String columnName, String sqlExpression) {
 		Set<String> toDrop = new HashSet<>(Arrays.asList(columnName));
@@ -208,7 +266,7 @@ public class DuckDBDataFrame implements DataFrame {
 	@Override
 	public DataFrame join(DataFrame other, String... onColumns) {
 		if (!(other instanceof DuckDBDataFrame)) {
-			// 如果另一个不是DuckDB，先转换
+			// 如果另一个不是DuckDB DataFrame，先转换
 			other = convertToDuckDB(other);
 		}
 
@@ -263,7 +321,6 @@ public class DuckDBDataFrame implements DataFrame {
 
 	@Override
 	public DataFrame applyScalar(String column, ScalarOperation operation, Object scalar, boolean scalarPre) {
-
 		String sqlOp;
 		String formattedScalar = formatSqlValue(scalar);
 		if (operation instanceof TypedScalarOperation) {
@@ -289,15 +346,22 @@ public class DuckDBDataFrame implements DataFrame {
 				sqlOp = column + " " + inferSQLOperator(10, scalar, testResult) + " " + formattedScalar;
 			}
 		}
-		
+
 		return withColumn(column, sqlOp);
 	}
 
+	/**
+	 * 格式化SQL值
+	 * <p>将Java对象转换为SQL字符串表示，处理null、字符串、日期、布尔值等类型。</p>
+	 *
+	 * @param value 原始值
+	 * @return SQL格式的值字符串
+	 */
 	private String formatSqlValue(Object value) {
 		if (value == null) {
 			return "NULL";
 		}
-		
+
 		if (value instanceof Optional<?>) {
 			return formatSqlValue(((Optional<?>) value).orElse(null));
 		}
@@ -340,6 +404,14 @@ public class DuckDBDataFrame implements DataFrame {
 		return value.toString();
 	}
 
+	/**
+	 * 构建一元运算符SQL表达式
+	 * <p>将一元运算符转换为对应的SQL表达式。</p>
+	 *
+	 * @param opType 运算符类型
+	 * @param column 列名
+	 * @return 一元运算符SQL表达式
+	 */
 	private String buildUnarySQLExpression(OperatorType opType, String column) {
 		switch (opType) {
 			case NEGATE:
@@ -352,32 +424,7 @@ public class DuckDBDataFrame implements DataFrame {
 
 			case BITWISE_NOT:
 				// 按位取反: ~column
-				// DuckDB使用 ~ 运算符
 				return "~(" + column + ")";
-
-//			case ABS:
-//				// 绝对值: ABS(column)
-//				return "ABS(" + column + ")";
-//
-//			case UPPER:
-//				// 转大写: UPPER(column)
-//				return "UPPER(" + column + ")";
-//
-//			case LOWER:
-//				// 转小写: LOWER(column)
-//				return "LOWER(" + column + ")";
-//
-//			case SQRT:
-//				// 平方根: SQRT(column)
-//				return "SQRT(" + column + ")";
-//
-//			case CEIL:
-//				// 向上取整: CEIL(column)
-//				return "CEIL(" + column + ")";
-//
-//			case FLOOR:
-//				// 向下取整: FLOOR(column)
-//				return "FLOOR(" + column + ")";
 
 			case IS_NULL:
 				// 判空: column IS NULL
@@ -395,6 +442,12 @@ public class DuckDBDataFrame implements DataFrame {
 
 	/**
 	 * 推断SQL运算符
+	 * <p>通过测试计算推断运算符类型，用于处理通用ScalarOperation。</p>
+	 *
+	 * @param left 左测试值
+	 * @param right 右测试值
+	 * @param result 计算结果
+	 * @return 推断的SQL运算符
 	 */
 	private String inferSQLOperator(Object left, Object right, Object result) {
 		if (left == null || right == null || result == null) {
@@ -541,10 +594,23 @@ public class DuckDBDataFrame implements DataFrame {
 		);
 
 		log.debug("Combine SQL: {}", sql);
-		DuckDBOperator.executeUpdate(sql);
+		DuckDBClients.executeUpdate(sql);
 		return new DuckDBDataFrame(resultTable);
 	}
 
+	/**
+	 * 构建组合运算SQL
+	 * <p>生成两个DataFrame进行组合运算的完整SQL语句。</p>
+	 *
+	 * @param leftTable 左表名
+	 * @param leftColumn 左表列名
+	 * @param rightTable 右表名
+	 * @param rightColumn 右表列名
+	 * @param operation 标量运算操作
+	 * @param analysis 维度分析结果
+	 * @param resultTable 结果表名
+	 * @return 完整的CREATE TABLE AS SELECT SQL语句
+	 */
 	private String buildCombineSQL(String leftTable,
 								   String leftColumn,
 								   String rightTable,
@@ -603,6 +669,15 @@ public class DuckDBDataFrame implements DataFrame {
 		return sql.toString();
 	}
 
+	/**
+	 * 构建运算SQL表达式
+	 * <p>根据ScalarOperation构建对应的SQL表达式，处理除零等边界情况。</p>
+	 *
+	 * @param leftExpr 左表达式
+	 * @param rightExpr 右表达式
+	 * @param operation 标量运算操作
+	 * @return 完整的SQL表达式
+	 */
 	private String buildOperationSQL(String leftExpr,
 									 String rightExpr,
 									 ScalarOperation operation) {
@@ -614,7 +689,7 @@ public class DuckDBDataFrame implements DataFrame {
 			}
 			return "(" + leftExpr + symbol + rightExpr + ")";
 		}
-		
+
 		// 使用测试值推断运算类型
 		Object testResult = operation.apply(10.0, 5.0);
 
@@ -645,7 +720,16 @@ public class DuckDBDataFrame implements DataFrame {
 			throw new IllegalArgumentException("Unsupported scalar operation");
 		}
 	}
-	
+
+	/**
+	 * 分析维度列
+	 * <p>分析两个DataFrame的维度列，找出公共维度、独有维度。</p>
+	 *
+	 * @param left 左DataFrame
+	 * @param right 右DataFrame
+	 * @param onColumns 指定的连接列
+	 * @return 维度分析结果
+	 */
 	private DimensionAnalysis analyzeDimensions(DuckDBDataFrame left,
 												DuckDBDataFrame right,
 												String[] onColumns) {
@@ -676,7 +760,7 @@ public class DuckDBDataFrame implements DataFrame {
 		}
 
 		commonDims = commonDims.stream().filter(dim -> !dim.startsWith(METRIC_PREFIX)).toList();
-		
+
 		// 独有维度
 		Set<String> leftOnly = new LinkedHashSet<>(leftDims);
 		leftOnly.removeAll(rightDims);
@@ -722,7 +806,7 @@ public class DuckDBDataFrame implements DataFrame {
 	@Override
 	public List<Map<String, Object>> toMapList() {
 		String sql = "SELECT * FROM " + tableName;
-		return DuckDBOperator.executeQuery(sql);
+		return DuckDBClients.executeQuery(sql);
 	}
 
 	@Override
@@ -768,7 +852,7 @@ public class DuckDBDataFrame implements DataFrame {
 		}
 
 		String sql = "SELECT * FROM " + tableName + " LIMIT " + n;
-		List<Map<String, Object>> preview = DuckDBOperator.executeQuery(sql);
+		List<Map<String, Object>> preview = DuckDBClients.executeQuery(sql);
 
 		// 列宽度计算
 		List<String> columns = getColumnNames();
@@ -819,26 +903,43 @@ public class DuckDBDataFrame implements DataFrame {
 
 	/**
 	 * 执行自定义SQL
+	 * <p>执行任意SQL查询并返回结果作为新DataFrame。</p>
+	 *
+	 * @param sql SQL语句
+	 * @return 执行结果的新DataFrame
 	 */
 	public DataFrame executeSQL(String sql) {
 		return executeAsNewTable(sql);
 	}
 
 	/**
-	 * 导出到文件
+	 * 导出到CSV文件
+	 * <p>将DataFrame导出为CSV格式文件。</p>
+	 *
+	 * @param filePath 文件路径
 	 */
 	public void exportToCsv(String filePath) {
 		String sql = "COPY " + tableName + " TO '" + filePath + "' (FORMAT CSV, HEADER)";
-		DuckDBOperator.executeUpdate(sql);
-	}
-
-	public void exportToParquet(String filePath) {
-		String sql = "COPY " + tableName + " TO '" + filePath + "' (FORMAT PARQUET)";
-		DuckDBOperator.executeUpdate(sql);
+		DuckDBClients.executeUpdate(sql);
 	}
 
 	/**
-	 * 创建索引（如果DuckDB支持）
+	 * 导出到Parquet文件
+	 * <p>将DataFrame导出为Parquet格式文件。</p>
+	 *
+	 * @param filePath 文件路径
+	 */
+	public void exportToParquet(String filePath) {
+		String sql = "COPY " + tableName + " TO '" + filePath + "' (FORMAT PARQUET)";
+		DuckDBClients.executeUpdate(sql);
+	}
+
+	/**
+	 * 创建索引
+	 * <p>在指定列上创建索引以优化查询性能。</p>
+	 *
+	 * @param indexName 索引名称
+	 * @param columns 索引列
 	 */
 	public void createIndex(String indexName, String... columns) {
 		// DuckDB可能不支持传统索引，但可以优化查询
@@ -847,10 +948,14 @@ public class DuckDBDataFrame implements DataFrame {
 
 	/**
 	 * 获取查询计划
+	 * <p>分析SQL查询的执行计划。</p>
+	 *
+	 * @param sql SQL语句
+	 * @return 查询计划字符串
 	 */
 	public String explainQuery(String sql) {
 		String explainSql = "EXPLAIN " + sql;
-		List<Map<String, Object>> result = DuckDBOperator.executeQuery(explainSql);
+		List<Map<String, Object>> result = DuckDBClients.executeQuery(explainSql);
 
 		return result.stream()
 				.map(row -> row.values().toString())
@@ -861,18 +966,26 @@ public class DuckDBDataFrame implements DataFrame {
 
 	/**
 	 * 执行SQL并返回新表
+	 * <p>执行SQL查询并将结果保存为新临时表。</p>
+	 *
+	 * @param sql SQL查询语句
+	 * @return 包含结果的新DataFrame
 	 */
 	private DataFrame executeAsNewTable(String sql) {
 		String newTableName = generateTempTableName("result");
 		String createTableSql = "CREATE TABLE " + newTableName + " AS " + sql;
 
-		DuckDBOperator.executeUpdate(createTableSql);
+		DuckDBClients.executeUpdate(createTableSql);
 
 		return new DuckDBDataFrame(newTableName);
 	}
 
 	/**
 	 * 生成临时表名
+	 * <p>生成唯一的临时表名，避免命名冲突。</p>
+	 *
+	 * @param prefix 表名前缀
+	 * @return 唯一的临时表名
 	 */
 	private String generateTempTableName(String prefix) {
 		return prefix + "_" + System.currentTimeMillis() + "_" +
@@ -881,32 +994,37 @@ public class DuckDBDataFrame implements DataFrame {
 
 	/**
 	 * 转换其他DataFrame为DuckDB
+	 * <p>将其他类型的DataFrame转换为DuckDBDataFrame。</p>
+	 *
+	 * @param other 其他DataFrame
+	 * @return DuckDBDataFrame
 	 */
 	private DataFrame convertToDuckDB(DataFrame other) {
 		String newTableName = generateTempTableName("imported");
-		DuckDBOperator.createTempTable(newTableName, other.toMapList());
+		DuckDBClients.createTempTable(newTableName, other.toMapList());
 		return new DuckDBDataFrame(newTableName);
 	}
 
 	/**
 	 * 加载列名
+	 * <p>从DuckDB系统表加载列名信息并缓存。</p>
 	 */
 	private void loadColumnNames() {
-//		String sql = "PRAGMA table_info('" + tableName + "')";
-//		List<Map<String, Object>> result = DuckDBOperator.executeQuery(sql);
-//
-//		this.cachedColumnNames = result.stream()
-//				.map(row -> (String) row.get("name"))
-//				.collect(Collectors.toList());
-		this.cachedColumnNames = Arrays.asList("COMPANY_INNER_CODE", "ACCT_PERIOD_NO", "METRIC_VALUE");
+		String sql = "PRAGMA table_info('" + tableName + "')";
+		List<Map<String, Object>> result = DuckDBClients.executeQuery(sql);
+
+		this.cachedColumnNames = result.stream()
+				.map(row -> (String) row.get("name"))
+				.collect(Collectors.toList());
 	}
 
 	/**
 	 * 加载行数
+	 * <p>从DuckDB加载表行数并缓存。</p>
 	 */
 	private void loadRowCount() {
 		String sql = "SELECT COUNT(*) as cnt FROM " + tableName;
-		List<Map<String, Object>> result = DuckDBOperator.executeQuery(sql);
+		List<Map<String, Object>> result = DuckDBClients.executeQuery(sql);
 
 		if (!result.isEmpty()) {
 			Object count = result.get(0).get("cnt");
@@ -917,24 +1035,24 @@ public class DuckDBDataFrame implements DataFrame {
 	}
 
 	/**
-	 * 将操作转为SQL
+	 * 将行级操作转为SQL
+	 * <p>将RowWiseOperation转换为对应的SQL运算符。</p>
+	 *
+	 * @param operation 行级操作
+	 * @return SQL运算符字符串
 	 */
-	private String operationToSQL(ScalarOperation operation, String column, Object scalar) {
-		// 简化：假设是加法
-		return column + " + " + formatSqlValue(scalar);
-	}
-
 	private String operationToSQL(RowWiseOperation operation) {
 		// 简化：假设是加法
 		return "+";
 	}
 
-//	private String formatSqlValue(Object value) {
-//		if (value == null) return "NULL";
-//		if (value instanceof String) return "'" + value.toString().replace("'", "''") + "'";
-//		return value.toString();
-//	}
-
+	/**
+	 * 格式化值为字符串
+	 * <p>将对象格式化为可读字符串，用于显示和调试。</p>
+	 *
+	 * @param value 原始值
+	 * @return 格式化后的字符串
+	 */
 	private String formatValue(Object value) {
 		if (value == null) return "null";
 		if (value instanceof java.math.BigDecimal) {
@@ -943,6 +1061,13 @@ public class DuckDBDataFrame implements DataFrame {
 		return value.toString();
 	}
 
+	/**
+	 * 格式化CSV值
+	 * <p>将对象格式化为CSV格式的字符串，处理逗号、引号等特殊字符。</p>
+	 *
+	 * @param value 原始值
+	 * @return CSV格式字符串
+	 */
 	private String formatCsvValue(Object value) {
 		String str = formatValue(value);
 		if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
@@ -951,6 +1076,14 @@ public class DuckDBDataFrame implements DataFrame {
 		return str;
 	}
 
+	/**
+	 * 截断字符串
+	 * <p>将字符串截断到指定长度，过长部分用"..."表示。</p>
+	 *
+	 * @param str 原始字符串
+	 * @param maxLength 最大长度
+	 * @return 截断后的字符串
+	 */
 	private String truncate(String str, int maxLength) {
 		if (str.length() <= maxLength) return str;
 		return str.substring(0, maxLength - 3) + "...";
@@ -958,6 +1091,10 @@ public class DuckDBDataFrame implements DataFrame {
 
 	// ============ 内部类 ============
 
+	/**
+	 * DuckDB DataFrame行实现
+	 * <p>表示DuckDBDataFrame中的单行数据。</p>
+	 */
 	private static class DuckDBDataFrameRow implements DataFrameRow {
 		private final Map<String, Object> data;
 
@@ -997,6 +1134,10 @@ public class DuckDBDataFrame implements DataFrame {
 		}
 	}
 
+	/**
+	 * DuckDB分组DataFrame实现
+	 * <p>支持分组聚合操作的DuckDBDataFrame包装类。</p>
+	 */
 	private static class DuckDBGroupedDataFrame implements GroupedDataFrame {
 		private final DuckDBDataFrame source;
 		private final String[] groupColumns;
@@ -1045,6 +1186,10 @@ public class DuckDBDataFrame implements DataFrame {
 		}
 	}
 
+	/**
+	 * DuckDB DataFrame统计信息实现
+	 * <p>计算DataFrame的统计摘要信息。</p>
+	 */
 	private static class DuckDBDataFrameStats implements DataFrameStats {
 		private final DuckDBDataFrame df;
 
@@ -1059,30 +1204,48 @@ public class DuckDBDataFrame implements DataFrame {
 
 		@Override
 		public Map<String, Object> getMean() {
-			// TODO: 实现统计
+			// TODO: 实现均值计算
 			return new HashMap<>();
 		}
 
 		@Override
 		public Map<String, Object> getStdDev() {
+			// TODO: 实现标准差计算
 			return new HashMap<>();
 		}
 
 		@Override
 		public Map<String, Object> getMin() {
+			// TODO: 实现最小值计算
 			return new HashMap<>();
 		}
 
 		@Override
 		public Map<String, Object> getMax() {
+			// TODO: 实现最大值计算
 			return new HashMap<>();
 		}
 	}
 
+	/**
+	 * 维度分析结果类
+	 * <p>存储两个DataFrame的维度列分析结果。</p>
+	 */
 	@lombok.Data
 	class DimensionAnalysis {
+		/**
+		 * 公共维度列
+		 */
 		private List<String> commonDimensions;
+
+		/**
+		 * 左表独有维度列
+		 */
 		private List<String> leftOnlyDimensions;
+
+		/**
+		 * 右表独有维度列
+		 */
 		private List<String> rightOnlyDimensions;
 	}
 }

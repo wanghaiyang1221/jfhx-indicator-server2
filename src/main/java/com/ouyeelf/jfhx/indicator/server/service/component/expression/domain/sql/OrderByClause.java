@@ -7,8 +7,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
+ * 排序条件定义
+ *
+ * <p>表示SQL查询中的ORDER BY子句，用于指定排序规则。</p>
+ *
  * @author : why
- * @since :  2026/2/1
+ * @since : 2026/2/1
  */
 @AllArgsConstructor
 @NoArgsConstructor
@@ -16,9 +20,15 @@ import lombok.NoArgsConstructor;
 @Data
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class OrderByClause {
-	
+
+	/**
+	 * 列名
+	 */
 	private String columnName;
-	
+
+	/**
+	 * 排序方向
+	 */
 	private SortOrder order;
-	
+
 }

@@ -1,10 +1,11 @@
 package com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.dataframe;
 
 import com.ouyeelf.cloud.commons.utils.CollectionUtils;
+import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.ExecutionResult;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.result.DatasetResult;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.result.DatasetRow;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.result.DefaultDatasetRow;
-import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.ExecutionResult;
+import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.support.ExecutionHelper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,31 +20,90 @@ import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_VALUE;
 import static com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.support.ExecutionHelper.detectMeasureColumn;
 
 /**
+ * 内存DataFrame实现
+ *
+ * <p>基于Java集合实现的DataFrame接口，将所有数据加载到内存中进行计算。</p>
+ *
+ * <p><b>核心特性</b>：
+ * <ul>
+ *   <li><b>内存计算</b>：所有操作在内存中完成，避免数据库连接开销</li>
+ *   <li><b>不可变性</b>：所有操作返回新的DataFrame，保证线程安全</li>
+ *   <li><b>完整功能</b>：支持DataFrame接口定义的所有操作</li>
+ *   <li><b>简单易用</b>：无需外部依赖，开箱即用</li>
+ *   <li><b>适合中小数据集</b>：适合处理内存可容纳的数据量</li>
+ * </ul>
+ * </p>
+ *
+ * <p><b>适用场景</b>：
+ * <ul>
+ *   <li>小型数据集处理（通常小于100万行）</li>
+ *   <li>需要快速原型开发的场景</li>
+ *   <li>无数据库访问权限的环境</li>
+ *   <li>需要完全内存计算的场景</li>
+ *   <li>调试和测试环境</li>
+ * </ul>
+ * </p>
+ *
+ * <p><b>性能考虑</b>：
+ * <ul>
+ *   <li>连接操作（JOIN）复杂度为O(n²)，大数据集性能较差</li>
+ *   <li>排序操作会复制数据，内存占用较高</li>
+ *   <li>适合中小数据集，大数据集建议使用DuckDBDataFrame</li>
+ * </ul>
+ * </p>
+ *
  * @author : why
- * @since :  2026/2/2
+ * @since : 2026/2/2
+ * @see DataFrame
+ * @see DuckDBDataFrame
+ * @see DatasetRow
  */
 @Slf4j
 public class MemoryDataFrame implements DataFrame {
 
+	/**
+	 * 列名列表
+	 */
 	@Getter
 	private final List<String> columnNames;
+
+	/**
+	 * 数据行列表
+	 */
 	private final List<Map<String, Object>> rows;
-	
-    public MemoryDataFrame(List<String> columnNames) {
+
+	/**
+	 * 构造函数（空数据）
+	 *
+	 * @param columnNames 列名列表
+	 */
+	public MemoryDataFrame(List<String> columnNames) {
 		this.columnNames = new ArrayList<>(columnNames);
 		this.rows = new ArrayList<>();
 	}
-    
-    public MemoryDataFrame(List<String> columnNames, List<Map<String, Object>> rows) {
+
+	/**
+	 * 构造函数（带数据）
+	 *
+	 * @param columnNames 列名列表
+	 * @param rows 数据行列表
+	 */
+	public MemoryDataFrame(List<String> columnNames, List<Map<String, Object>> rows) {
 		this.columnNames = new ArrayList<>(columnNames);
 		this.rows = new ArrayList<>(rows);
 	}
-	
+
+	/**
+	 * 从DatasetRow列表构建
+	 *
+	 * @param datasetRows DatasetRow列表
+	 * @return MemoryDataFrame实例
+	 */
 	public static MemoryDataFrame build(List<DatasetRow> datasetRows) {
 		if (CollectionUtils.isEmpty(datasetRows)) {
 			return new MemoryDataFrame(null);
 		} else {
-			return new MemoryDataFrame(new ArrayList<>(datasetRows.get(0).getColumnNames()), 
+			return new MemoryDataFrame(new ArrayList<>(datasetRows.get(0).getColumnNames()),
 					datasetRows.stream()
 							.map(DatasetRow::toMap)
 							.collect(Collectors.toList()));
@@ -389,12 +449,23 @@ public class MemoryDataFrame implements DataFrame {
 		return build(resultRows);
 	}
 
+	/**
+	 * 连接并计算
+	 *
+	 * @param leftRows 左表行
+	 * @param leftColumn 左表列
+	 * @param rightRows 右表行
+	 * @param rightColumn 右表列
+	 * @param joinColumns 连接列
+	 * @param operation 运算操作
+	 * @return 计算结果行列表
+	 */
 	private List<DatasetRow> joinAndCompute(List<DatasetRow> leftRows,
-										   String leftColumn,
-										   List<DatasetRow> rightRows,
-										   String rightColumn,
-										   List<String> joinColumns,
-										   ScalarOperation operation) {
+											String leftColumn,
+											List<DatasetRow> rightRows,
+											String rightColumn,
+											List<String> joinColumns,
+											ScalarOperation operation) {
 
 		List<DatasetRow> result = new ArrayList<>();
 
@@ -447,6 +518,9 @@ public class MemoryDataFrame implements DataFrame {
 		return result;
 	}
 
+	/**
+	 * 构建连接键
+	 */
 	private String buildJoinKey(DatasetRow row, List<String> joinColumns) {
 
 		List<String> keyParts = new ArrayList<>();
@@ -463,10 +537,10 @@ public class MemoryDataFrame implements DataFrame {
 	 * 合并两行数据并计算
 	 */
 	private DatasetRow combineRows(DatasetRow leftRow,
-								  String leftColumn,
+								   String leftColumn,
 								   DatasetRow rightRow,
-								  String rightColumn,
-								  ScalarOperation operation) {
+								   String rightColumn,
+								   ScalarOperation operation) {
 
 		DefaultDatasetRow resultRow = DefaultDatasetRow.builder().build();
 
@@ -645,6 +719,9 @@ public class MemoryDataFrame implements DataFrame {
 
 	/**
 	 * 添加行
+	 *
+	 * @param row 行数据
+	 * @return 当前DataFrame（支持链式调用）
 	 */
 	public MemoryDataFrame addRow(Map<String, Object> row) {
 		rows.add(new LinkedHashMap<>(row));
@@ -653,12 +730,20 @@ public class MemoryDataFrame implements DataFrame {
 
 	/**
 	 * 添加多行
+	 *
+	 * @param newRows 多行数据
+	 * @return 当前DataFrame（支持链式调用）
 	 */
 	public MemoryDataFrame addRows(List<Map<String, Object>> newRows) {
 		rows.addAll(newRows);
 		return this;
 	}
-	
+
+	/**
+	 * 获取DatasetRow列表
+	 *
+	 * @return DatasetRow列表
+	 */
 	public List<DatasetRow> getDatasetRows() {
 		return rows.stream()
 				.map(row -> {
@@ -677,14 +762,33 @@ public class MemoryDataFrame implements DataFrame {
 
 	// ============ 静态工厂方法 ============
 
+	/**
+	 * 创建空DataFrame
+	 *
+	 * @param columns 列名列表
+	 * @return 空DataFrame
+	 */
 	public static MemoryDataFrame empty(List<String> columns) {
 		return new MemoryDataFrame(columns);
 	}
 
+	/**
+	 * 从列和数据创建DataFrame
+	 *
+	 * @param columns 列名列表
+	 * @param rows 数据行
+	 * @return DataFrame实例
+	 */
 	public static MemoryDataFrame of(List<String> columns, List<Map<String, Object>> rows) {
 		return new MemoryDataFrame(columns, rows);
 	}
 
+	/**
+	 * 从Map列表创建DataFrame
+	 *
+	 * @param rows 数据行（从第一行提取列名）
+	 * @return DataFrame实例
+	 */
 	public static MemoryDataFrame fromMapList(List<Map<String, Object>> rows) {
 		if (rows.isEmpty()) {
 			return new MemoryDataFrame(Collections.emptyList());
@@ -696,6 +800,9 @@ public class MemoryDataFrame implements DataFrame {
 
 	// ============ 私有辅助方法 ============
 
+	/**
+	 * 内连接实现
+	 */
 	private DataFrame innerJoin(DataFrame other, String... onColumns) {
 		List<String> joinKeys = Arrays.asList(onColumns);
 		List<Map<String, Object>> joinedRows = new ArrayList<>();
@@ -720,6 +827,9 @@ public class MemoryDataFrame implements DataFrame {
 		return new MemoryDataFrame(newColumns, joinedRows);
 	}
 
+	/**
+	 * 构建索引
+	 */
 	private Map<List<Object>, List<Map<String, Object>>> buildIndex(
 			List<Map<String, Object>> rows, List<String> keyColumns) {
 
@@ -733,8 +843,11 @@ public class MemoryDataFrame implements DataFrame {
 		return index;
 	}
 
+	/**
+	 * 构建DatasetRow索引
+	 */
 	private Map<String, List<DatasetRow>> buildIndexFromDataRow(List<DatasetRow> rows,
-													List<String> joinColumns) {
+																List<String> joinColumns) {
 
 		Map<String, List<DatasetRow>> index = new HashMap<>();
 
@@ -747,37 +860,50 @@ public class MemoryDataFrame implements DataFrame {
 		return index;
 	}
 
+	/**
+	 * 提取键值
+	 */
 	private List<Object> extractKeyValues(Map<String, Object> row, List<String> keyColumns) {
 		return keyColumns.stream()
 				.map(row::get)
 				.collect(Collectors.toList());
 	}
 
+	/**
+	 * 合并行
+	 */
 	private Map<String, Object> mergeRows(Map<String, Object> left, Map<String, Object> right) {
 		Map<String, Object> merged = new LinkedHashMap<>(left);
 		merged.putAll(right);
 		return merged;
 	}
 
+	/**
+	 * 合并列名
+	 */
 	private List<String> mergeColumnNames(List<String> left, List<String> right) {
 		Set<String> uniqueColumns = new LinkedHashSet<>(left);
 		uniqueColumns.addAll(right);
 		return new ArrayList<>(uniqueColumns);
 	}
 
+	/**
+	 * 查找第一个度量列
+	 */
 	private String findFirstMeasureColumn(List<String> columns) {
-		return columns.stream()
-				.filter(this::isMeasureColumn)
-				.findFirst()
-				.orElse(columns.isEmpty() ? "value" : columns.get(0));
+		return ExecutionHelper.detectMeasureColumn(columns);
 	}
 
+	/**
+	 * 判断是否为度量列
+	 */
 	private boolean isMeasureColumn(String columnName) {
-		return columnName.endsWith("_value") ||
-				columnName.equals("value") ||
-				columnName.equals("result");
+		return ExecutionHelper.isMeasureColumn(columnName);
 	}
 
+	/**
+	 * 比较两个值
+	 */
 	private int compareValues(Object val1, Object val2) {
 		if (val1 == null && val2 == null) return 0;
 		if (val1 == null) return -1;
@@ -802,6 +928,9 @@ public class MemoryDataFrame implements DataFrame {
 		return val1.toString().compareTo(val2.toString());
 	}
 
+	/**
+	 * 格式化值为字符串
+	 */
 	private String formatValue(Object value) {
 		if (value == null) {
 			return "null";
@@ -812,6 +941,9 @@ public class MemoryDataFrame implements DataFrame {
 		return value.toString();
 	}
 
+	/**
+	 * 格式化CSV值
+	 */
 	private String formatCsvValue(Object value) {
 		String str = formatValue(value);
 		if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
@@ -820,6 +952,9 @@ public class MemoryDataFrame implements DataFrame {
 		return str;
 	}
 
+	/**
+	 * 截断字符串
+	 */
 	private String truncate(String str, int maxLength) {
 		if (str.length() <= maxLength) {
 			return str;
@@ -829,6 +964,9 @@ public class MemoryDataFrame implements DataFrame {
 
 	// ============ 内部类：DataFrameRow实现 ============
 
+	/**
+	 * 内存DataFrame行实现
+	 */
 	private static class MemoryDataFrameRow implements DataFrameRow {
 		private final Map<String, Object> data;
 
@@ -872,6 +1010,9 @@ public class MemoryDataFrame implements DataFrame {
 
 	// ============ 内部类：GroupedDataFrame实现 ============
 
+	/**
+	 * 内存分组DataFrame实现
+	 */
 	private static class MemoryGroupedDataFrame implements GroupedDataFrame {
 		private final MemoryDataFrame source;
 		private final String[] groupColumns;
@@ -934,6 +1075,9 @@ public class MemoryDataFrame implements DataFrame {
 			return agg(column, AggregateFunction.MIN);
 		}
 
+		/**
+		 * 计算聚合值
+		 */
 		private Object computeAggregate(List<Map<String, Object>> rows,
 										String column,
 										AggregateFunction function) {
@@ -985,6 +1129,9 @@ public class MemoryDataFrame implements DataFrame {
 
 	// ============ 内部类：Stats实现 ============
 
+	/**
+	 * 内存DataFrame统计信息实现
+	 */
 	private static class MemoryDataFrameStats implements DataFrameStats {
 		private final long count;
 		private final Map<String, Object> mean;
@@ -1007,12 +1154,18 @@ public class MemoryDataFrame implements DataFrame {
 			}
 		}
 
+		/**
+		 * 判断是否为数值列
+		 */
 		private boolean isNumericColumn(List<Object> values) {
 			return values.stream()
 					.filter(Objects::nonNull)
 					.anyMatch(val -> val instanceof Number);
 		}
 
+		/**
+		 * 计算统计信息
+		 */
 		private void computeStats(String column, List<Object> values) {
 			List<BigDecimal> numbers = values.stream()
 					.filter(Objects::nonNull)

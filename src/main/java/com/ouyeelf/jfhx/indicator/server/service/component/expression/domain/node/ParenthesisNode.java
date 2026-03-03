@@ -45,7 +45,7 @@ public class ParenthesisNode extends AbstractExpressionNode {
 	}
 
 	@Override
-	public ExecutionResult execute(ExecutionContext context) {
+	protected ExecutionResult doExecute(ExecutionContext context) {
 		return executeChild(child, context);
 	}
 

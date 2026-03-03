@@ -1,4 +1,4 @@
-package com.ouyeelf.app.server.runner;
+package com.ouyeelf.jfhx.indicator.server.runner;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

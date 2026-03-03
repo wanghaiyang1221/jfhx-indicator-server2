@@ -3,6 +3,8 @@ package com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.no
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.ExpressionNode;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.domain.enums.NodeType;
+import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.ExecutionContext;
+import com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.ExecutionResult;
 import com.ouyeelf.jfhx.indicator.server.service.component.expression.visitor.NodeVisitor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -46,6 +48,11 @@ public class CaseNode extends AbstractExpressionNode {
 	@Override
 	public NodeType getNodeType() {
 		return NodeType.CASE;
+	}
+
+	@Override
+	protected ExecutionResult doExecute(ExecutionContext context) {
+		return null;
 	}
 
 	/**

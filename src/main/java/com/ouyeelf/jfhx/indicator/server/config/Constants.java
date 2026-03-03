@@ -33,11 +33,20 @@ public class Constants extends com.ouyeelf.cloud.commons.constants.Constants {
 	public static final String PARQUET_FILE = "/*.parquet";
 	
 	/**
-	 * 数据类型
+	 * 指标数据的输出类型
 	 */
 	public enum DataType {
+		/**
+		 * 金额
+		 */
 		money,
+		/**
+		 * 比例
+		 */
 		ratio,
+		/**
+		 * 数量或数值
+		 */
 		count
 	}
 	

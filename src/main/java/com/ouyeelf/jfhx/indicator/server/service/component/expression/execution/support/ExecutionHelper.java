@@ -1,7 +1,5 @@
 package com.ouyeelf.jfhx.indicator.server.service.component.expression.execution.support;
 
-import com.ouyeelf.jfhx.indicator.server.config.Constants;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -12,11 +10,21 @@ import java.util.stream.Collectors;
 import static com.ouyeelf.jfhx.indicator.server.config.Constants.METRIC_VALUE;
 
 /**
+ * 执行辅助工具类
+ * <p>提供表达式执行过程中的各种类型转换、数值计算、字符串操作、逻辑运算和NULL处理等辅助方法。</p>
+ *
  * @author : why
- * @since :  2026/2/2
+ * @since : 2026/2/2
  */
 public final class ExecutionHelper {
 
+	/**
+	 * 检测度量列
+	 * <p>从列名列表中识别出最可能是度量值的列。</p>
+	 *
+	 * @param columns 列名列表
+	 * @return 识别出的度量列名，如未识别则返回null
+	 */
 	public static String detectMeasureColumn(List<String> columns) {
 
 		// 优先级1：明确的度量列名
@@ -52,6 +60,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为度量列
+	 *
+	 * @param columnName 列名
+	 * @return 如果是度量列则返回true
 	 */
 	public static boolean isMeasureColumn(String columnName) {
 		return columnName.equals(METRIC_VALUE) ||
@@ -63,6 +74,13 @@ public final class ExecutionHelper {
 				columnName.startsWith("count_");
 	}
 
+	/**
+	 * 转换为BigDecimal类型
+	 *
+	 * @param value 要转换的值
+	 * @return BigDecimal对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
+	 */
 	public static BigDecimal toBigDecimal(Object value) {
 		if (value == null) {
 			return null;
@@ -89,6 +107,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 安全转换为BigDecimal（不抛异常）
+	 *
+	 * @param value 要转换的值
+	 * @param defaultValue 转换失败时返回的默认值
+	 * @return BigDecimal对象或默认值
 	 */
 	public static BigDecimal toBigDecimalSafe(Object value, BigDecimal defaultValue) {
 		try {
@@ -99,7 +121,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 转换为Integer
+	 * 转换为Integer类型
+	 *
+	 * @param value 要转换的值
+	 * @return Integer对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static Integer toInteger(Object value) {
 		if (value == null) {
@@ -119,6 +145,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 安全转换为Integer
+	 *
+	 * @param value 要转换的值
+	 * @param defaultValue 转换失败时返回的默认值
+	 * @return Integer对象或默认值
 	 */
 	public static Integer toIntegerSafe(Object value, Integer defaultValue) {
 		try {
@@ -129,7 +159,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 转换为Long
+	 * 转换为Long类型
+	 *
+	 * @param value 要转换的值
+	 * @return Long对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static Long toLong(Object value) {
 		if (value == null) {
@@ -149,6 +183,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 安全转换为Long
+	 *
+	 * @param value 要转换的值
+	 * @param defaultValue 转换失败时返回的默认值
+	 * @return Long对象或默认值
 	 */
 	public static Long toLongSafe(Object value, Long defaultValue) {
 		try {
@@ -159,7 +197,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 转换为Double
+	 * 转换为Double类型
+	 *
+	 * @param value 要转换的值
+	 * @return Double对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static Double toDouble(Object value) {
 		if (value == null) {
@@ -179,6 +221,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 安全转换为Double
+	 *
+	 * @param value 要转换的值
+	 * @param defaultValue 转换失败时返回的默认值
+	 * @return Double对象或默认值
 	 */
 	public static Double toDoubleSafe(Object value, Double defaultValue) {
 		try {
@@ -189,7 +235,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 转换为Float
+	 * 转换为Float类型
+	 *
+	 * @param value 要转换的值
+	 * @return Float对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static Float toFloat(Object value) {
 		if (value == null) {
@@ -209,6 +259,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转换为布尔值
+	 *
+	 * @param value 要转换的值
+	 * @return 布尔值结果
 	 */
 	public static boolean toBoolean(Object value) {
 		if (value == null) {
@@ -229,6 +282,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转换为字符串
+	 *
+	 * @param value 要转换的值
+	 * @return 字符串表示，null值转换为空字符串
 	 */
 	public static String toString(Object value) {
 		return value == null ? "" : value.toString();
@@ -236,6 +292,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 安全转换为字符串（不返回null）
+	 *
+	 * @param value 要转换的值
+	 * @return 非空字符串
 	 */
 	public static String toStringSafe(Object value) {
 		return value == null ? "" : value.toString();
@@ -243,6 +302,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转换为LocalDate
+	 *
+	 * @param value 要转换的值
+	 * @return LocalDate对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static LocalDate toLocalDate(Object value) {
 		if (value == null) {
@@ -254,8 +317,8 @@ public final class ExecutionHelper {
 		if (value instanceof java.sql.Date) {
 			return ((java.sql.Date) value).toLocalDate();
 		}
-		if (value instanceof java.util.Date) {
-			return new java.sql.Date(((java.util.Date) value).getTime()).toLocalDate();
+		if (value instanceof Date) {
+			return new java.sql.Date(((Date) value).getTime()).toLocalDate();
 		}
 		if (value instanceof String) {
 			return LocalDate.parse((String) value);
@@ -265,6 +328,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转换为LocalDateTime
+	 *
+	 * @param value 要转换的值
+	 * @return LocalDateTime对象
+	 * @throws IllegalArgumentException 当无法转换时抛出
 	 */
 	public static LocalDateTime toLocalDateTime(Object value) {
 		if (value == null) {
@@ -283,7 +350,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 加法
+	 * 加法运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return 运算结果，支持数值相加和字符串拼接
 	 */
 	public static Object add(Object left, Object right) {
 		// null处理
@@ -301,7 +372,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 减法
+	 * 减法运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return 减法结果
 	 */
 	public static Object subtract(Object left, Object right) {
 		if (left == null || right == null) {
@@ -311,7 +386,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 乘法
+	 * 乘法运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return 乘法结果
 	 */
 	public static Object multiply(Object left, Object right) {
 		if (left == null || right == null) {
@@ -321,7 +400,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 除法
+	 * 除法运算
+	 *
+	 * @param left 被除数
+	 * @param right 除数
+	 * @return 除法结果，除数为0时返回null
 	 */
 	public static Object divide(Object left, Object right) {
 		if (left == null || right == null) {
@@ -336,7 +419,13 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 除法（自定义精度）
+	 * 除法运算（自定义精度）
+	 *
+	 * @param left 被除数
+	 * @param right 除数
+	 * @param scale 精度（小数位数）
+	 * @param roundingMode 舍入模式
+	 * @return 除法结果，除数为0时返回null
 	 */
 	public static Object divide(Object left, Object right, int scale, RoundingMode roundingMode) {
 		if (left == null || right == null) {
@@ -351,7 +440,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 取模
+	 * 取模运算
+	 *
+	 * @param left 被除数
+	 * @param right 除数
+	 * @return 取模结果
 	 */
 	public static Object modulo(Object left, Object right) {
 		if (left == null || right == null) {
@@ -362,6 +455,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 幂运算
+	 *
+	 * @param base 底数
+	 * @param exponent 指数
+	 * @return 幂运算结果
 	 */
 	public static Object power(Object base, Object exponent) {
 		if (base == null || exponent == null) {
@@ -373,6 +470,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 取绝对值
+	 *
+	 * @param value 数值
+	 * @return 绝对值
 	 */
 	public static Object abs(Object value) {
 		if (value == null) {
@@ -383,6 +483,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 向上取整
+	 *
+	 * @param value 数值
+	 * @return 向上取整结果
 	 */
 	public static Object ceil(Object value) {
 		if (value == null) {
@@ -393,6 +496,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 向下取整
+	 *
+	 * @param value 数值
+	 * @return 向下取整结果
 	 */
 	public static Object floor(Object value) {
 		if (value == null) {
@@ -403,6 +509,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 四舍五入
+	 *
+	 * @param value 数值
+	 * @param scale 精度（小数位数）
+	 * @return 四舍五入结果
 	 */
 	public static Object round(Object value, int scale) {
 		if (value == null) {
@@ -411,6 +521,12 @@ public final class ExecutionHelper {
 		return toBigDecimal(value).setScale(scale, RoundingMode.HALF_UP);
 	}
 
+	/**
+	 * 四舍五入（变长参数版本）
+	 *
+	 * @param args 参数列表：[数值, 精度]
+	 * @return 四舍五入结果
+	 */
 	public static Object round(List<Object> args) {
 		BigDecimal value = toBigDecimal(args.get(0));
 		int scale = args.size() > 1 ? ((Number) args.get(1)).intValue() : 0;
@@ -419,6 +535,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 取最大值
+	 *
+	 * @param values 数值列表
+	 * @return 最大值
 	 */
 	public static Object max(Object... values) {
 		BigDecimal max = null;
@@ -435,6 +554,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 取最小值
+	 *
+	 * @param values 数值列表
+	 * @return 最小值
 	 */
 	public static Object min(Object... values) {
 		BigDecimal min = null;
@@ -451,6 +573,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 求和
+	 *
+	 * @param values 数值列表
+	 * @return 求和结果
 	 */
 	public static Object sum(Object... values) {
 		BigDecimal sum = BigDecimal.ZERO;
@@ -464,6 +589,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 求平均值
+	 *
+	 * @param values 数值列表
+	 * @return 平均值
 	 */
 	public static Object avg(Object... values) {
 		List<Object> nonNullValues = Arrays.stream(values)
@@ -483,7 +611,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 比较（返回 -1, 0, 1）
+	 * 比较两个值
+	 *
+	 * @param left 左值
+	 * @param right 右值
+	 * @return 比较结果：-1(左<右), 0(相等), 1(左>右)
 	 */
 	public static int compare(Object left, Object right) {
 		if (left == null && right == null) {
@@ -534,28 +666,43 @@ public final class ExecutionHelper {
 	// ============ 逻辑运算辅助方法 ============
 
 	/**
-	 * AND运算
+	 * AND逻辑运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return AND运算结果
 	 */
 	public static boolean and(Object left, Object right) {
 		return toBoolean(left) && toBoolean(right);
 	}
 
 	/**
-	 * OR运算
+	 * OR逻辑运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return OR运算结果
 	 */
 	public static boolean or(Object left, Object right) {
 		return toBoolean(left) || toBoolean(right);
 	}
 
 	/**
-	 * NOT运算
+	 * NOT逻辑运算
+	 *
+	 * @param value 操作数
+	 * @return NOT运算结果
 	 */
 	public static boolean not(Object value) {
 		return !toBoolean(value);
 	}
 
 	/**
-	 * XOR运算
+	 * XOR逻辑运算
+	 *
+	 * @param left 左操作数
+	 * @param right 右操作数
+	 * @return XOR运算结果
 	 */
 	public static boolean xor(Object left, Object right) {
 		return toBoolean(left) ^ toBoolean(right);
@@ -565,6 +712,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 字符串拼接
+	 *
+	 * @param values 要拼接的值列表
+	 * @return 拼接后的字符串
 	 */
 	public static String concat(Object... values) {
 		StringBuilder sb = new StringBuilder();
@@ -578,6 +728,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转大写
+	 *
+	 * @param value 字符串
+	 * @return 大写字符串
 	 */
 	public static String toUpperCase(Object value) {
 		return toString(value).toUpperCase();
@@ -585,6 +738,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 转小写
+	 *
+	 * @param value 字符串
+	 * @return 小写字符串
 	 */
 	public static String toLowerCase(Object value) {
 		return toString(value).toLowerCase();
@@ -592,6 +748,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 去除首尾空格
+	 *
+	 * @param value 字符串
+	 * @return 去除空格后的字符串
 	 */
 	public static String trim(Object value) {
 		return toString(value).trim();
@@ -599,6 +758,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 字符串长度
+	 *
+	 * @param value 字符串
+	 * @return 字符串长度
 	 */
 	public static int length(Object value) {
 		return toString(value).length();
@@ -606,6 +768,11 @@ public final class ExecutionHelper {
 
 	/**
 	 * 截取字符串
+	 *
+	 * @param value 原始字符串
+	 * @param start 起始位置
+	 * @param end 结束位置
+	 * @return 截取的子字符串
 	 */
 	public static String substring(Object value, int start, int end) {
 		String str = toString(value);
@@ -615,6 +782,12 @@ public final class ExecutionHelper {
 		return str.substring(start, end);
 	}
 
+	/**
+	 * 截取字符串（变长参数版本）
+	 *
+	 * @param args 参数列表：[字符串, 起始位置(从1开始), 可选长度]
+	 * @return 截取的子字符串
+	 */
 	public static String substring(List<Object> args) {
 		String str = args.get(0).toString();
 		int start = ((Number) args.get(1)).intValue() - 1; // SQL从1开始
@@ -629,6 +802,11 @@ public final class ExecutionHelper {
 
 	/**
 	 * 替换字符串
+	 *
+	 * @param source 原始字符串
+	 * @param search 要查找的字符串
+	 * @param replacement 替换字符串
+	 * @return 替换后的字符串
 	 */
 	public static String replace(Object source, Object search, Object replacement) {
 		return toString(source).replace(toString(search), toString(replacement));
@@ -636,6 +814,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断字符串是否包含
+	 *
+	 * @param source 原始字符串
+	 * @param search 要查找的字符串
+	 * @return 如果包含则返回true
 	 */
 	public static boolean contains(Object source, Object search) {
 		return toString(source).contains(toString(search));
@@ -643,6 +825,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断字符串是否以某字符串开头
+	 *
+	 * @param source 原始字符串
+	 * @param prefix 前缀字符串
+	 * @return 如果以指定前缀开头则返回true
 	 */
 	public static boolean startsWith(Object source, Object prefix) {
 		return toString(source).startsWith(toString(prefix));
@@ -650,6 +836,10 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断字符串是否以某字符串结尾
+	 *
+	 * @param source 原始字符串
+	 * @param suffix 后缀字符串
+	 * @return 如果以指定后缀结尾则返回true
 	 */
 	public static boolean endsWith(Object source, Object suffix) {
 		return toString(source).endsWith(toString(suffix));
@@ -659,6 +849,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 检查值是否为null
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是null则返回true
 	 */
 	public static boolean isNull(Object value) {
 		return value == null;
@@ -666,6 +859,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 检查值是否不为null
+	 *
+	 * @param value 要检查的值
+	 * @return 如果不是null则返回true
 	 */
 	public static boolean isNotNull(Object value) {
 		return value != null;
@@ -673,6 +869,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 检查值是否为空字符串
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是空字符串则返回true
 	 */
 	public static boolean isEmpty(Object value) {
 		if (value == null) {
@@ -692,6 +891,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 检查值是否为空（包括空白字符串）
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是空或空白字符串则返回true
 	 */
 	public static boolean isBlank(Object value) {
 		if (value == null) {
@@ -704,7 +906,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * COALESCE - 返回第一个非null值
+	 * COALESCE函数
+	 * <p>返回第一个非null值</p>
+	 *
+	 * @param values 值列表
+	 * @return 第一个非null值，如果全部为null则返回null
 	 */
 	public static Object coalesce(Object... values) {
 		for (Object value : values) {
@@ -716,28 +922,49 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * NVL - 如果第一个参数为null，返回第二个参数
+	 * NVL函数
+	 * <p>如果第一个参数为null，返回第二个参数</p>
+	 *
+	 * @param value 要检查的值
+	 * @param defaultValue 默认值
+	 * @return 值或默认值
 	 */
 	public static Object nvl(Object value, Object defaultValue) {
 		return value != null ? value : defaultValue;
 	}
 
 	/**
-	 * NVL2 - 如果第一个参数不为null，返回第二个参数，否则返回第三个参数
+	 * NVL2函数
+	 * <p>如果第一个参数不为null，返回第二个参数，否则返回第三个参数</p>
+	 *
+	 * @param value 要检查的值
+	 * @param valueIfNotNull 值不为null时的返回值
+	 * @param valueIfNull 值为null时的返回值
+	 * @return 根据值是否为null返回相应结果
 	 */
 	public static Object nvl2(Object value, Object valueIfNotNull, Object valueIfNull) {
 		return value != null ? valueIfNotNull : valueIfNull;
 	}
 
 	/**
-	 * NULLIF - 如果两个值相等，返回null，否则返回第一个值
+	 * NULLIF函数
+	 * <p>如果两个值相等，返回null，否则返回第一个值</p>
+	 *
+	 * @param value1 第一个值
+	 * @param value2 第二个值
+	 * @return 比较结果
 	 */
 	public static Object nullif(Object value1, Object value2) {
 		return Objects.equals(value1, value2) ? null : value1;
 	}
 
 	/**
-	 * IFNULL - 如果第一个参数为null，返回第二个参数
+	 * IFNULL函数
+	 * <p>如果第一个参数为null，返回第二个参数</p>
+	 *
+	 * @param value 要检查的值
+	 * @param defaultValue 默认值
+	 * @return 值或默认值
 	 */
 	public static Object ifNull(Object value, Object defaultValue) {
 		return nvl(value, defaultValue);
@@ -746,7 +973,12 @@ public final class ExecutionHelper {
 	// ============ 集合操作辅助方法 ============
 
 	/**
-	 * 检查值是否在集合中
+	 * IN操作
+	 * <p>检查值是否在候选值列表中</p>
+	 *
+	 * @param value 要检查的值
+	 * @param candidates 候选值列表
+	 * @return 如果值在列表中则返回true
 	 */
 	public static boolean in(Object value, Object... candidates) {
 		if (value == null) {
@@ -761,7 +993,11 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 检查值是否在集合中（集合参数）
+	 * IN操作（集合参数）
+	 *
+	 * @param value 要检查的值
+	 * @param candidates 候选值集合
+	 * @return 如果值在集合中则返回true
 	 */
 	public static boolean in(Object value, Collection<?> candidates) {
 		if (value == null || candidates == null) {
@@ -771,14 +1007,23 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 检查值是否不在集合中
+	 * NOT IN操作
+	 *
+	 * @param value 要检查的值
+	 * @param candidates 候选值列表
+	 * @return 如果值不在列表中则返回true
 	 */
 	public static boolean notIn(Object value, Object... candidates) {
 		return !in(value, candidates);
 	}
 
 	/**
-	 * 检查值是否在区间内
+	 * BETWEEN操作
+	 *
+	 * @param value 要检查的值
+	 * @param lower 下限
+	 * @param upper 上限
+	 * @return 如果值在区间内则返回true
 	 */
 	public static boolean between(Object value, Object lower, Object upper) {
 		if (value == null || lower == null || upper == null) {
@@ -788,7 +1033,12 @@ public final class ExecutionHelper {
 	}
 
 	/**
-	 * 检查值是否不在区间内
+	 * NOT BETWEEN操作
+	 *
+	 * @param value 要检查的值
+	 * @param lower 下限
+	 * @param upper 上限
+	 * @return 如果值不在区间内则返回true
 	 */
 	public static boolean notBetween(Object value, Object lower, Object upper) {
 		return !between(value, lower, upper);
@@ -798,6 +1048,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为数值类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是数值类型则返回true
 	 */
 	public static boolean isNumeric(Object value) {
 		if (value == null) {
@@ -819,6 +1072,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为整数类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是整数类型则返回true
 	 */
 	public static boolean isInteger(Object value) {
 		if (value == null) {
@@ -830,6 +1086,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为浮点数类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是浮点数类型则返回true
 	 */
 	public static boolean isFloatingPoint(Object value) {
 		if (value == null) {
@@ -840,6 +1099,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为字符串类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是字符串类型则返回true
 	 */
 	public static boolean isString(Object value) {
 		return value instanceof String;
@@ -847,6 +1109,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为布尔类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是布尔类型则返回true
 	 */
 	public static boolean isBooleanType(Object value) {
 		return value instanceof Boolean;
@@ -854,6 +1119,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为日期类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是日期类型则返回true
 	 */
 	public static boolean isDate(Object value) {
 		return value instanceof LocalDate || value instanceof java.sql.Date;
@@ -861,6 +1129,9 @@ public final class ExecutionHelper {
 
 	/**
 	 * 判断是否为时间类型
+	 *
+	 * @param value 要检查的值
+	 * @return 如果是时间类型则返回true
 	 */
 	public static boolean isDateTime(Object value) {
 		return value instanceof LocalDateTime || value instanceof java.sql.Timestamp;
